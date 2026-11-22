@@ -20,3 +20,4 @@ export * from './dedup';
 export * from './crypto';
 export * from './timeout';
 export * from './resource-fee';
+export * from './batch';

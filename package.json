@@ -52,8 +52,10 @@
       "require": "./dist/contract/index.js"
     }
   },
+  "bin": "./bin/trustflow-sdk.js",
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "repository": {
     "type": "git",
