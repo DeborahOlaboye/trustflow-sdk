@@ -201,7 +201,11 @@ in the example project turns that into a precise error instead of a shim.
 | `@trustflow/sdk/utils` | Retry, HTTP, validation, feature detection | None |
 | `@trustflow/sdk/node` | **Node only** — `createHttpAgent`, `createHttpsAgent`, `configureAxiosConnectionPool` | `node:http`, `node:https` |
 
-`@trustflow/sdk/node` is the only entry that touches Node's `http`/`https`. It
+`@trustflow/sdk/node` is the only entry that touches Node's `http`/`https`. In
+Edge, Workers and browser bundles (the `workerd`, `edge-light` and `browser`
+export conditions) it resolves to a stub: the Node-only factories throw
+`UNSUPPORTED_ENVIRONMENT` with a clear message, and the bundler never sees
+`node:http` (#776). It
 exists so the browser bundle never has to, even by accident — see
 `src/node/agents.ts` for the reasoning. Importing it in a browser is a mistake:
 the browser manages its own per-origin connection pool and the agents have no

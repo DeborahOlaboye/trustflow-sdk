@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Account summary, Node entry guard, batch CSV validation and `init` scaffold (#774, #776, #777, #779)
+
+- Issue #774: Added `client.getAccountSummary()` and `fetchAccountSummary()`. One Horizon request returns `balanceXlm`, `sequence`, `subentryCount` and `trustlines` (credit assets only). A missing account throws `ACCOUNT_NOT_FOUND`. `fetchAccountInfo` keeps its behaviour and now shares the same fetch code.
+- Issue #776: `@trustflow/sdk/node` resolves to a runtime-safe stub under the `workerd`, `edge-light` and `browser` export conditions. Calling `createHttpAgent`, `createHttpsAgent` or `configureAxiosConnectionPool` there throws `UNSUPPORTED_ENVIRONMENT` with a clear message, instead of a bundler error about `node:crypto`. Node imports are unchanged.
+- Issue #777: Added `parseCsv`, `parseCsvRecords`, `validateBatchRows`, `submitBatchRows` and `runCsvBatch` to `@trustflow/sdk/utils`. `runCsvBatch` validates every row before the first submission, so one malformed row rejects the whole file with every bad row listed. A failed submission reports `failedRow` so the batch can resume.
+- Issue #779: Added the `npx @trustflow/sdk init` scaffold, which writes `trustflow.config.mjs`, `trustflow-quickstart.mjs` and `.env.example`. It never overwrites a file without confirmation: it prompts in a terminal, refuses without one, and `--force` overwrites.
+
 ### Concurrent `connectWallet()` calls share one wallet prompt (#741)
 
 - Issue #741: `connectWallet()` now reuses the pending connection attempt when it is called again for the same wallet type before that attempt settles, so several components connecting on mount open one Freighter (or Albedo) prompt and all receive the same connection or error. Once the attempt settles, the next call prompts again, so retrying after a rejection still works.
