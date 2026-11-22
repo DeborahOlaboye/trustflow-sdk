@@ -318,4 +318,6 @@ const NON_RETRYABLE_SDK_CODES = new Set([
   'AUTH_ERROR',
   'INVALID_CONTRACT_CALL',
   'CIRCUIT_BREAKER_OPEN',
+  // Horizon answered 404: the account does not exist, and retrying cannot change that.
+  'ACCOUNT_NOT_FOUND',
 ]);

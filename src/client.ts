@@ -17,7 +17,12 @@ import { SimpleCache } from './utils/cache';
 import { AccountManager } from './accounts/manager';
 import type { AccountContext, AccountOptions, AddAccountInput } from './accounts/types';
 import { assertStellarAddress } from './utils/validation';
-import { fetchAccountInfo, type AccountInfo } from './stellar/account';
+import {
+  fetchAccountInfo,
+  fetchAccountSummary,
+  type AccountInfo,
+  type AccountSummary,
+} from './stellar/account';
 import { NETWORK_CONFIGS, rpcUrlMatchesPassphrase } from './stellar/network';
 import { withTransientRetry } from './utils/node-retry';
 import {
@@ -602,6 +607,63 @@ export class TrustFlowClient {
       if (error instanceof TrustFlowError && error.code === 'TIMEOUT') throw error;
       throw new TrustFlowError(
         `Failed to fetch account info for ${account.address}`,
+        'CONNECTION_ERROR',
+        error,
+      );
+    }
+  }
+
+  /**
+   * Fetches the active (or named) account's balance, sequence number,
+   * subentry count and trustlines in **one** Horizon request.
+   *
+   * Use this instead of stitching together {@link TrustFlowClient.getBalance}
+   * and {@link TrustFlowClient.getAccountInfo} when you need more than one of
+   * these fields. Retries and timeouts follow the same rules as
+   * `getAccountInfo`.
+   *
+   * @param options - `account` to target a specific account; defaults to active
+   * @returns The account summary; `trustlines` lists credit-asset balances only
+   * @throws {TrustFlowError} `ACCOUNT_NOT_FOUND` when the account has not been
+   *   funded (Horizon `404`), `ACCOUNT_NOT_FOUND` when no account is resolved,
+   *   `CONNECTION_ERROR` when Horizon stays unreachable, or `TIMEOUT`
+   *
+   * @example
+   * ```typescript
+   * const summary = await client.getAccountSummary();
+   * console.log(`${summary.balanceXlm} XLM, ${summary.subentryCount} subentries`);
+   * for (const line of summary.trustlines) {
+   *   console.log(line.assetCode, line.balance);
+   * }
+   * ```
+   */
+  async getAccountSummary(options: AccountOptions = {}): Promise<AccountSummary> {
+    const account = this.accounts.require(options.account);
+    try {
+      return await withTransientRetry(
+        () =>
+          fetchAccountSummary(
+            account.address,
+            this.network,
+            this.retryConfig,
+            this.horizonUrl,
+            this.timeoutMs,
+          ),
+        undefined,
+        this.retryConfig,
+        'horizon.accountSummary',
+      );
+    } catch (error) {
+      // A missing account and a timed-out fetch keep their own codes; only
+      // genuine transport failures are reported as connection errors.
+      if (
+        error instanceof TrustFlowError &&
+        (error.code === 'TIMEOUT' || error.code === 'ACCOUNT_NOT_FOUND')
+      ) {
+        throw error;
+      }
+      throw new TrustFlowError(
+        `Failed to fetch account summary for ${account.address}`,
         'CONNECTION_ERROR',
         error,
       );
