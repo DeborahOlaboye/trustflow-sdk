@@ -492,6 +492,26 @@ try {
 }
 ```
 
+## Account Summary (#774)
+
+- `client.getAccountSummary({ account? })` — Returns `{ address, balanceXlm, sequence, subentryCount, trustlines }` from one Horizon request. `trustlines` lists credit-asset balances (`{ assetCode, assetIssuer, balance, limit }`); liquidity-pool shares are excluded. An unfunded account throws `ACCOUNT_NOT_FOUND`.
+- `fetchAccountSummary(address, network, retry?, horizonUrl?, timeoutMs?)` — The same request without a client, from `@trustflow/sdk`.
+
+## Batch CSV Helpers (`@trustflow/sdk/utils`, #777)
+
+Validate every row before the first submission, so a malformed row never leaves earlier rows half-submitted.
+
+- `parseCsv(text)` / `parseCsvRecords(text)` — Parse CSV with quoted fields and a header row into records keyed by column name. Width mismatches are reported together.
+- `validateBatchRows(rows, validate)` — Runs `validate(row, rowNumber)` on every row. If any row fails, it throws `VALIDATION_ERROR` listing all failures, and submits nothing.
+- `submitBatchRows(rows, submit)` — Submits in order and stops at the first failure. Returns `{ results, submitted, failedRow?, error? }`; resume with `rows.slice(failedRow - 1)`.
+- `runCsvBatch(text, { validate, submit })` — Parse, validate, then submit.
+
+Row numbers are 1-based and count data rows only.
+
+## Project Scaffold (`npx @trustflow/sdk init`, #779)
+
+Run `npx @trustflow/sdk init` in an empty directory to write `trustflow.config.mjs`, `trustflow-quickstart.mjs` and `.env.example`. An existing file is never overwritten silently: the command asks in a terminal and refuses without one. Pass `--force` to overwrite without asking.
+
 ## Balance Formatting
 
 - `formatBalance(amount, options?)` — Formats an XLM balance string (such as the one `getBalance` returns) for display (#739)

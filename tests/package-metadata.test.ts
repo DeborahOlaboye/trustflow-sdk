@@ -66,7 +66,7 @@ describe('published tarball contents', () => {
     expect(files).toContain('README.md');
 
     const unexpected = files.filter(
-      (f) => !/^(dist\/|package\.json$|README(\.[a-z]+)?$|LICENSE(\.[a-z]+)?$)/i.test(f),
+      (f) => !/^(dist\/|bin\/|package\.json$|README(\.[a-z]+)?$|LICENSE(\.[a-z]+)?$)/i.test(f),
     );
     expect(unexpected).toEqual([]);
   });
