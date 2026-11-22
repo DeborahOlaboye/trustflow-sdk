@@ -41,7 +41,11 @@ describe('package exports map (#100)', () => {
   it('every condition of every subpath is a valid condition pointing at a dist path', () => {
     for (const conditions of Object.values(pkg.exports)) {
       for (const [condition, target] of Object.entries(conditions)) {
-        expect(['types', 'import', 'require']).toContain(condition);
+        // `workerd`, `edge-light` and `browser` route non-Node runtimes away from
+        // the Node entry (#776); they are only used on `./node`.
+        expect(['types', 'import', 'require', 'workerd', 'edge-light', 'browser']).toContain(
+          condition,
+        );
         expect(target).toMatch(/^\.\/dist\/.+\.(d\.ts|mjs|js)$/);
       }
     }

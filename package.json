@@ -35,6 +35,9 @@
     },
     "./node": {
       "types": "./dist/node/index.d.ts",
+      "workerd": "./dist/node/edge.mjs",
+      "edge-light": "./dist/node/edge.mjs",
+      "browser": "./dist/node/edge.mjs",
       "import": "./dist/node/index.mjs",
       "require": "./dist/node/index.js"
     },

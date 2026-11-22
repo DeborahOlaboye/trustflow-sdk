@@ -17,6 +17,10 @@ export default defineConfig({
     // `http`/`https`, which is what keeps every other entry polyfill-free in a
     // browser bundle (#webpack5).
     'src/node/index.ts',
+    // Edge / Workers / browser stand-in for the Node entry, selected through the
+    // `workerd`, `edge-light` and `browser` export conditions (#776). It must not
+    // import node:http or node:https.
+    'src/node/edge.ts',
   ],
   format: ['cjs', 'esm'],
   dts: true,
