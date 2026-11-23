@@ -497,6 +497,12 @@ try {
 - `client.getAccountSummary({ account? })` — Returns `{ address, balanceXlm, sequence, subentryCount, trustlines }` from one Horizon request. `trustlines` lists credit-asset balances (`{ assetCode, assetIssuer, balance, limit }`); liquidity-pool shares are excluded. An unfunded account throws `ACCOUNT_NOT_FOUND`.
 - `fetchAccountSummary(address, network, retry?, horizonUrl?, timeoutMs?)` — The same request without a client, from `@trustflow/sdk`.
 
+## Testnet Funding, Keypair Preview and Sponsored Accounts (#770, #771, #775)
+
+- `fundTestnetAccount(address, { friendbotUrl?, timeoutMs? })` — Funds a testnet account through friendbot and is idempotent. Resolves `{ status: 'funded', hash }` for a new account and `{ status: 'already_funded' }` when friendbot reports the account already exists. Other failures throw `CONNECTION_ERROR`. Testnet only. `TESTNET_FRIENDBOT_URL` holds the default URL.
+- `previewNewAccount()` — Generates a keypair and returns only `{ publicKey }`. Use it for a preview. If the account will be used, generate a `Keypair` directly and keep its secret.
+- `buildSponsoredAccountOperations({ sponsor, newAccount })` — Prototype. Returns the begin-sponsoring, zero-balance create and end-sponsoring operations for sponsored account creation. Build the transaction with the sponsor as source, then sign it with both keys. The sponsor pays the reserve. See the [sponsored reserves spike](spikes/issue-775-sponsored-reserves.md).
+
 ## Batch CSV Helpers (`@trustflow/sdk/utils`, #777)
 
 Validate every row before the first submission, so a malformed row never leaves earlier rows half-submitted.
