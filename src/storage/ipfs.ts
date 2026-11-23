@@ -130,6 +130,19 @@ export interface IPFSUploadOptions {
   contentType?: string;
   /** Abort signal for cancelling the upload request. */
   abortSignal?: AbortSignal;
+  /**
+   * Called as the request body is sent. `fraction` is 0–1, or null when the
+   * total size is unknown. Reported by the HTTP client, so it reflects bytes
+   * actually sent to the pinning service, not a timer.
+   */
+  onUploadProgress?: (progress: IPFSUploadProgress) => void;
+}
+
+/** Progress of an in-flight IPFS upload. */
+export interface IPFSUploadProgress {
+  loaded: number;
+  total: number | null;
+  fraction: number | null;
 }
 
 export interface IPFSUploadResult {
@@ -226,6 +239,19 @@ export class IPFSStorage {
           ...(filename ? { 'X-Name': filename } : {}),
         },
         signal: options.abortSignal,
+        ...(options.onUploadProgress
+          ? {
+              onUploadProgress: (event: { loaded: number; total?: number }) => {
+                // Fall back to the known body size when the client can't tell.
+                const total = event.total ?? size ?? null;
+                options.onUploadProgress?.({
+                  loaded: event.loaded,
+                  total,
+                  fraction: total ? Math.min(1, event.loaded / total) : null,
+                });
+              },
+            }
+          : {}),
       });
       const cid = response.data?.cid;
       if (!cid || typeof cid !== 'string' || cid.trim() === '') {

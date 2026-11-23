@@ -2,6 +2,7 @@ export { IPFSStorage } from './ipfs';
 export type {
   IPFSConfig,
   IPFSUploadOptions,
+  IPFSUploadProgress,
   IPFSUploadResult,
   IPFSResolveOptions,
   EncryptedData,

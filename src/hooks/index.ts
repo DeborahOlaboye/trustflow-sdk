@@ -7,6 +7,18 @@ export { useEscrow } from './useEscrow';
 export type { OptimisticOptions, CreateEscrowOptions, ReleaseEscrowOptions } from './useEscrow';
 export { useProfile } from './useProfile';
 export { useJuror } from './useJuror';
+export { usePolling } from './usePolling';
+export type { UsePollingOptions, UsePollingResult } from './usePolling';
+export { useMultiSigOperation } from './useMultiSigOperation';
+export type { MultiSigOperationSource, UseMultiSigOperationOptions } from './useMultiSigOperation';
+export { useDeliverableUpload } from './useDeliverableUpload';
+export type {
+  DeliverableUploader,
+  DeliverableUploadError,
+  DeliverableUploadStatus,
+  PinnedDeliverable,
+  UseDeliverableUploadOptions,
+} from './useDeliverableUpload';
 
 // `useEscrow` calls the free functions `createEscrow(client, params)` /
 // `releaseEscrow(client, params)`. Both are re-exported by

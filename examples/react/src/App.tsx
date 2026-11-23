@@ -1,4 +1,5 @@
 import { useWalletSession } from '@trustflow/sdk/react';
+import { DeliverableUpload } from './DeliverableUpload';
 import './App.css';
 
 const apiUrl = import.meta.env.VITE_TRUSTFLOW_API_URL ?? 'http://localhost:3000';
@@ -23,6 +24,7 @@ export default function App() {
         </button>
       )}
       {error && <p role="alert">{error.message}</p>}
+      <DeliverableUpload />
     </main>
   );
 }
