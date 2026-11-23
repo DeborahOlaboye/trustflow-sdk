@@ -1,7 +1,8 @@
+import { Keypair } from '@stellar/stellar-sdk';
 import { TrustFlowError } from '../errors';
 import { withTransientRetry } from '../utils/node-retry';
 import type { ApiRetryConfig } from '../utils/http';
-import { fetchWithTimeout } from '../utils/timeout';
+import { DEFAULT_TIMEOUT_MS, fetchWithTimeout } from '../utils/timeout';
 import { assertStellarAddress } from '../utils/validation';
 import { getNetworkConfig, StellarNetwork } from './network';
 
@@ -281,4 +282,124 @@ export async function fetchAccountSummary(
     subentryCount: data.subentry_count ?? 0,
     trustlines,
   };
+}
+
+/** Public friendbot endpoint that funds accounts on Stellar testnet. */
+export const TESTNET_FRIENDBOT_URL = 'https://friendbot.stellar.org';
+
+/** Options for {@link fundTestnetAccount}. */
+export interface FundTestnetAccountOptions {
+  /** Friendbot base URL. Defaults to {@link TESTNET_FRIENDBOT_URL}. */
+  friendbotUrl?: string;
+  /** Request timeout in milliseconds. Defaults to the SDK-wide 10s. */
+  timeoutMs?: number;
+}
+
+/**
+ * Outcome of {@link fundTestnetAccount}. Both outcomes leave the account
+ * holding testnet XLM, so neither is an error.
+ */
+export type FundTestnetAccountResult =
+  | { status: 'funded'; hash: string | undefined }
+  | { status: 'already_funded' };
+
+/** Friendbot result codes that mean the account already exists. */
+const FRIENDBOT_ALREADY_EXISTS_CODES = ['op_already_exists', 'createAccountAlreadyExist'];
+
+/**
+ * Funds a Stellar testnet account through friendbot, idempotently.
+ *
+ * Friendbot rejects an account that already exists. This helper reads that
+ * rejection as success and resolves `{ status: 'already_funded' }`, so calling
+ * it twice for the same account does not throw. Every other failure (network
+ * errors, rate limits, other HTTP errors) still throws.
+ *
+ * Testnet only: the public friendbot does not run on mainnet.
+ *
+ * @param address - Stellar `G...` public key to fund
+ * @param options - Optional friendbot URL and request timeout
+ * @returns `funded` with the transaction hash when friendbot created the
+ *   account, or `already_funded` when the account already existed
+ * @throws {TrustFlowError} `VALIDATION_ERROR` for an invalid address, `TIMEOUT`
+ *   when the deadline fires, `CONNECTION_ERROR` for any other failure
+ *
+ * @example
+ * ```typescript
+ * const first = await fundTestnetAccount(publicKey);   // { status: 'funded', hash }
+ * const again = await fundTestnetAccount(publicKey);   // { status: 'already_funded' }
+ * ```
+ */
+export async function fundTestnetAccount(
+  address: string,
+  options: FundTestnetAccountOptions = {},
+): Promise<FundTestnetAccountResult> {
+  assertStellarAddress(address, 'address');
+  const baseUrl = options.friendbotUrl ?? TESTNET_FRIENDBOT_URL;
+  const url = `${baseUrl}?addr=${encodeURIComponent(address)}`;
+
+  let response: Response;
+  let body: string;
+  try {
+    response = await fetchWithTimeout(
+      url,
+      undefined,
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      'friendbot.fundTestnetAccount',
+    );
+    body = await response.text();
+  } catch (e) {
+    throw TrustFlowError.wrap(e, 'CONNECTION_ERROR');
+  }
+
+  if (response.ok) {
+    return { status: 'funded', hash: parseFriendbotHash(body) };
+  }
+  if (FRIENDBOT_ALREADY_EXISTS_CODES.some((code) => body.includes(code))) {
+    return { status: 'already_funded' };
+  }
+  throw new TrustFlowError(
+    `Friendbot could not fund ${address} (HTTP ${response.status})`,
+    'CONNECTION_ERROR',
+    { status: response.status },
+  );
+}
+
+/** Reads the transaction hash from a friendbot success body, or `undefined` if absent. */
+function parseFriendbotHash(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { hash?: unknown };
+    return typeof parsed.hash === 'string' ? parsed.hash : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Result of {@link previewNewAccount}: the public key and nothing else. */
+export interface AccountPreview {
+  /** `G...` public key of the generated account. */
+  publicKey: string;
+}
+
+/**
+ * Generates a new account for display and returns only its public key.
+ *
+ * The keypair is created and used inside this call and is never returned, so
+ * the secret cannot reach the caller through the result. Use this only for a
+ * preview. If the account is going to be used, generate a `Keypair` directly
+ * and store its secret, because this helper cannot give it back.
+ *
+ * JavaScript strings cannot be overwritten, so this does not erase the secret
+ * from memory. It only makes sure no reference to the secret is returned.
+ *
+ * @returns An object holding the generated account's public key
+ *
+ * @example
+ * ```typescript
+ * const { publicKey } = previewNewAccount();
+ * showAddressToUser(publicKey);
+ * ```
+ */
+export function previewNewAccount(): AccountPreview {
+  const keypair = Keypair.random();
+  return { publicKey: keypair.publicKey() };
 }

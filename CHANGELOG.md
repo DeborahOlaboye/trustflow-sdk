@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Testnet funding, keypair preview, sponsored account builder and broadcast spike (#769, #770, #771, #775)
+
+- Issue #771: Added `fundTestnetAccount(address, { friendbotUrl?, timeoutMs? })`. Friendbot's "account already exists" rejection (`op_already_exists` / `createAccountAlreadyExist`) now resolves `{ status: 'already_funded' }` instead of throwing, so the helper is idempotent. A fresh account resolves `{ status: 'funded', hash }`. Every other failure still throws `CONNECTION_ERROR`, and `TESTNET_FRIENDBOT_URL` is exported.
+- Issue #770: Added `previewNewAccount()`, which generates a keypair and returns only `{ publicKey }`, so no secret reference is returned to the caller. JavaScript strings cannot be overwritten, so this does not erase the secret from memory.
+- Issue #775: Added `buildSponsoredAccountOperations({ sponsor, newAccount })`, which returns the begin-sponsoring, zero-balance create and end-sponsoring operations for CAP-33 sponsored account creation. The sponsor pays the reserve. It is a prototype: it is covered by unit tests, but has not been submitted to testnet. See the [sponsored reserves spike](docs/spikes/issue-775-sponsored-reserves.md).
+- Issue #769: Added the [parallel broadcast spike](docs/spikes/issue-769-parallel-broadcast.md). It recommends deferring parallel broadcast and records the duplicate and bad-sequence rules it would need. No code changed for this issue, and the latency benchmark has not been run.
+
 ### Account summary, Node entry guard, batch CSV validation and `init` scaffold (#774, #776, #777, #779)
 
 - Issue #774: Added `client.getAccountSummary()` and `fetchAccountSummary()`. One Horizon request returns `balanceXlm`, `sequence`, `subentryCount` and `trustlines` (credit assets only). A missing account throws `ACCOUNT_NOT_FOUND`. `fetchAccountInfo` keeps its behaviour and now shares the same fetch code.
