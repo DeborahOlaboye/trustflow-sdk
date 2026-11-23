@@ -619,13 +619,23 @@ export class TransactionPipeline {
     this.pipelineLogger.debug('Submitting transaction', {
       isFeeBump: tx instanceof FeeBumpTransaction,
     });
+    // The per-RPC timeout bounds the `sendTransaction` call itself. It must
+    // not wrap the whole attempt: that would also cut the confirmation wait
+    // off at the per-request budget and silently override the caller's
+    // `pollTimeoutMs` / `confirmTimeoutMs` (#764). Each `getTransaction` poll
+    // is bounded separately inside `pollForConfirmation`.
+    const rpcTimeoutMs = options?.timeoutMs ?? this.client.timeoutMs;
     return withRetry(
       async (attempt) => {
         this.pipelineLogger.debug('Sending transaction to network', {
           attempt,
           hash: tx.hash?.toString(),
         });
-        const sendResult = await this.server.sendTransaction(tx);
+        const sendResult = await withTimeout(
+          this.server.sendTransaction(tx),
+          rpcTimeoutMs,
+          'pipeline.submit',
+        );
 
         if (sendResult.status === 'ERROR') {
           // Terminal: the node evaluated and rejected this envelope.
@@ -650,9 +660,8 @@ export class TransactionPipeline {
           feeCharged: tx.fee,
         };
       },
-      options,
+      { ...options, timeoutMs: undefined },
       'submit',
-      this.client.timeoutMs,
     );
   }
 
@@ -856,10 +865,14 @@ export class TransactionPipeline {
     hash: string,
     options?: SubmitOptions,
   ): Promise<number | undefined> {
-    const attempts = options?.pollAttempts ?? DEFAULT_POLL_ATTEMPTS;
     const intervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-    const pollTimeoutMs = options?.pollTimeoutMs;
+    const pollTimeoutMs = options?.pollTimeoutMs ?? options?.confirmTimeoutMs;
     const deadline = pollTimeoutMs !== undefined ? Date.now() + pollTimeoutMs : undefined;
+    // With a caller-provided deadline and no explicit attempt cap, keep
+    // polling until the deadline instead of stopping at the default
+    // 10 x 1500ms budget, which would shorten a longer requested wait (#764).
+    const attempts =
+      options?.pollAttempts ?? (deadline !== undefined ? Infinity : DEFAULT_POLL_ATTEMPTS);
 
     /** True once the overall confirmation deadline has elapsed. */
     const deadlineExpired = (): boolean => deadline !== undefined && Date.now() >= deadline;

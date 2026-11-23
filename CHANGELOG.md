@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Shared polling primitive, `useMultiSigOperation` and `useDeliverableUpload` (#784, #785, #786)
+
+- Issue #786: Added `usePolling(fetchFn, { interval, enabled, pauseWhenHidden, key, stopWhen })` to `@trustflow/sdk/react`. It pauses while the tab is hidden and fetches once when the tab is shown again. Fetches never overlap. Passing a new inline function doesn't restart polling. Results keep the same reference while polls return equal data. The [shared polling spike](docs/spikes/issue-786-shared-polling.md) lists every polling loop in the SDK and the migration plan.
+- Issue #784: Added `useMultiSigOperation(source, operationId)`, built on `usePolling`. `signatures` keeps the same array reference until a signature actually changes, so `React.memo` children don't re-render on unchanged polls. Polling stops once the operation is `submitted` or `expired`.
+- Issue #785: Added `useDeliverableUpload({ storage, submit })`. It pins a file to IPFS with real upload progress, then submits the CID for a milestone. `error.stage` tells pin and submit failures apart, `retrySubmit()` resubmits without re-uploading, and `pinTimeoutMs` ends a stalled pin with an error. `IPFSStorage.upload` accepts `onUploadProgress`. There's a file-input example in `examples/react`.
+
 ### Testnet funding, keypair preview, sponsored account builder and broadcast spike (#769, #770, #771, #775)
 
 - Issue #771: Added `fundTestnetAccount(address, { friendbotUrl?, timeoutMs? })`. Friendbot's "account already exists" rejection (`op_already_exists` / `createAccountAlreadyExist`) now resolves `{ status: 'already_funded' }` instead of throwing, so the helper is idempotent. A fresh account resolves `{ status: 'funded', hash }`. Every other failure still throws `CONNECTION_ERROR`, and `TESTNET_FRIENDBOT_URL` is exported.

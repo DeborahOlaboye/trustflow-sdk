@@ -381,6 +381,96 @@ describe('TransactionPipeline confirmation deadline', () => {
     if (!result.ok) return;
     expect(result.data.ledger).toBe(42);
   });
+
+  describe('a caller-provided confirmation timeout is honoured (#764)', () => {
+    /** Reports NOT_FOUND until `landsAfterMs` has elapsed, then SUCCESS. */
+    function landsAfter(landsAfterMs: number) {
+      const start = Date.now();
+      return jest
+        .spyOn(rpc.Server.prototype, 'getTransaction')
+        .mockImplementation(async () =>
+          Date.now() - start >= landsAfterMs
+            ? txStatus(rpc.Api.GetTransactionStatus.SUCCESS, 7)
+            : txStatus(rpc.Api.GetTransactionStatus.NOT_FOUND),
+        );
+    }
+
+    it('is not cut off by the shorter client-wide per-RPC timeout', async () => {
+      jest.spyOn(rpc.Server.prototype, 'sendTransaction').mockResolvedValue(pending());
+      landsAfter(60);
+
+      // Each RPC call may take at most 20ms, but confirmation may take 500ms.
+      const client = new TrustFlowClient({
+        contractId: CONTRACT_ID,
+        network: 'TESTNET',
+        timeoutMs: 20,
+      });
+      const result = await new TransactionPipeline(client).submit(signedTx(), {
+        pollIntervalMs: 5,
+        pollAttempts: 1_000,
+        confirmTimeoutMs: 500,
+        maxAttempts: 1,
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.ledger).toBe(7);
+    });
+
+    it('is not cut off by the default poll-attempt budget', async () => {
+      jest.spyOn(rpc.Server.prototype, 'sendTransaction').mockResolvedValue(pending());
+      // 10 default attempts x 5ms is ~50ms, well short of when this lands.
+      const poll = landsAfter(120);
+
+      const result = await new TransactionPipeline(makeClient()).submit(signedTx(), {
+        pollIntervalMs: 5,
+        pollTimeoutMs: 1_000,
+        maxAttempts: 1,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(poll.mock.calls.length).toBeGreaterThan(10);
+    });
+
+    it('still times out at the requested deadline', async () => {
+      jest.spyOn(rpc.Server.prototype, 'sendTransaction').mockResolvedValue(pending());
+      landsAfter(Number.POSITIVE_INFINITY);
+
+      const started = Date.now();
+      const result = await new TransactionPipeline(makeClient()).submit(signedTx(), {
+        pollIntervalMs: 5,
+        confirmTimeoutMs: 80,
+        maxAttempts: 1,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('TIMEOUT');
+      expect(result.error.message).toContain('Timed out after 80ms');
+      expect(Date.now() - started).toBeGreaterThanOrEqual(75);
+    });
+
+    it('still bounds a hung sendTransaction by the per-RPC timeout', async () => {
+      jest
+        .spyOn(rpc.Server.prototype, 'sendTransaction')
+        .mockImplementation(() => new Promise(() => {}));
+
+      const client = new TrustFlowClient({
+        contractId: CONTRACT_ID,
+        network: 'TESTNET',
+        timeoutMs: 10,
+      });
+      const result = await new TransactionPipeline(client).submit(signedTx(), {
+        confirmTimeoutMs: 60_000,
+        maxAttempts: 1,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('TIMEOUT');
+      expect(result.error.message).toContain('pipeline.submit');
+    });
+  });
 });
 
 describe('default timeout', () => {
