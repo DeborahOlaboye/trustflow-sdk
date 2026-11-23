@@ -127,7 +127,11 @@ export interface FeeBumpEvent {
 export interface SubmitOptions extends RetryPolicy {
   /** Interval between `getTransaction` polls while awaiting confirmation. Defaults to 1500ms. */
   pollIntervalMs?: number;
-  /** Maximum number of confirmation polls before timing out. Defaults to 10. */
+  /**
+   * Maximum number of confirmation polls before timing out. Defaults to 10,
+   * or — when a confirmation deadline (`pollTimeoutMs` / `confirmTimeoutMs`)
+   * is set — to as many polls as fit before that deadline.
+   */
   pollAttempts?: number;
   /**
    * Overall deadline in milliseconds for one confirmation-polling cycle,
@@ -136,8 +140,15 @@ export interface SubmitOptions extends RetryPolicy {
    * poll fails with a `TIMEOUT` error (retried by the surrounding submit
    * stage, matching the existing poll-exhaustion behaviour). Defaults to
    * `pollAttempts` x `pollIntervalMs`.
+   *
+   * This deadline is independent of the per-RPC timeout (`timeoutMs` /
+   * `ClientConfig.timeoutMs`), which bounds each individual
+   * `sendTransaction` / `getTransaction` call but never the confirmation
+   * wait as a whole.
    */
   pollTimeoutMs?: number;
+  /** Alias of {@link SubmitOptions.pollTimeoutMs}; `pollTimeoutMs` wins when both are set. */
+  confirmTimeoutMs?: number;
   /**
    * When the initial submission fails for a fee-related reason (the node
    * reports `TRY_AGAIN_LATER` or rejects the transaction for insufficient
