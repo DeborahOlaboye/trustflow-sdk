@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### `useWallet` unmount guard (#782)
+
+- Issue #782: `useWallet()` no longer updates `wallet`, `loading`, `error` or `isRejected` when a `connect()` or `disconnect()` settles after its component has unmounted. The promise still resolves or rejects as before, and `disconnect()` still revokes stored sessions. React 18 and 19 no longer log a warning for this, so the change guards against the state update rather than fixing a visible warning.
+
 ### Shared polling primitive, `useMultiSigOperation` and `useDeliverableUpload` (#784, #785, #786)
 
 - Issue #786: Added `usePolling(fetchFn, { interval, enabled, pauseWhenHidden, key, stopWhen })` to `@trustflow/sdk/react`. It pauses while the tab is hidden and fetches once when the tab is shown again. Fetches never overlap. Passing a new inline function doesn't restart polling. Results keep the same reference while polls return equal data. The [shared polling spike](docs/spikes/issue-786-shared-polling.md) lists every polling loop in the SDK and the migration plan.

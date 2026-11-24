@@ -1,4 +1,6 @@
 /** @jest-environment jsdom */
+import { createElement, StrictMode } from 'react';
+import type { ReactNode } from 'react';
 import { renderHook, act } from '@testing-library/react';
 import { useWallet } from '../src/hooks/useWallet';
 import { connectWallet, disconnectWallet } from '../src/wallet/connect';
@@ -350,5 +352,90 @@ describe('useWallet', () => {
     });
     expect(result.current.loading).toBe(false);
     expect(result.current.wallet).toBe(albedoConnection);
+  });
+
+  describe('unmount (#782)', () => {
+    /** Wraps the hook in StrictMode, which mounts, unmounts and remounts effects. */
+    function StrictWrapper({ children }: { children: ReactNode }) {
+      return createElement(StrictMode, null, children);
+    }
+
+    it('keeps connecting after StrictMode remounts the effect', async () => {
+      mockConnect.mockResolvedValueOnce(connection);
+      const { result } = renderHook(() => useWallet(), { wrapper: StrictWrapper });
+
+      await act(async () => {
+        await result.current.connect();
+      });
+
+      expect(result.current.wallet).toBe(connection);
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.loading).toBe(false);
+    });
+
+    it('resolves a connect that settles after unmount without logging a warning', async () => {
+      let resolveConnect: (w: WalletConnection) => void = () => undefined;
+      mockConnect.mockReturnValueOnce(
+        new Promise<WalletConnection>((resolve) => {
+          resolveConnect = resolve;
+        }),
+      );
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { result, unmount } = renderHook(() => useWallet());
+
+      let pending: Promise<WalletConnection>;
+      act(() => {
+        pending = result.current.connect();
+      });
+      expect(result.current.loading).toBe(true);
+      unmount();
+
+      await act(async () => {
+        resolveConnect(connection);
+        await expect(pending).resolves.toBe(connection);
+      });
+
+      expect(consoleError).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('rethrows a connect that rejects after unmount without logging a warning', async () => {
+      let rejectConnect: (error: Error) => void = () => undefined;
+      mockConnect.mockReturnValueOnce(
+        new Promise<WalletConnection>((_resolve, reject) => {
+          rejectConnect = reject;
+        }),
+      );
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { result, unmount } = renderHook(() => useWallet());
+
+      let pending: Promise<WalletConnection>;
+      act(() => {
+        pending = result.current.connect();
+      });
+      unmount();
+
+      await act(async () => {
+        rejectConnect(new Error('User rejected the request'));
+        await expect(pending).rejects.toThrow('User rejected the request');
+      });
+
+      expect(consoleError).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('still revokes session state when disconnect runs after unmount', async () => {
+      mockDisconnect.mockResolvedValueOnce(undefined);
+      const { result, unmount } = renderHook(() => useWallet());
+      saveSession('tok-late', 'GABC', Date.now() + 60_000);
+
+      unmount();
+      await act(async () => {
+        await result.current.disconnect();
+      });
+
+      expect(mockDisconnect).toHaveBeenCalledTimes(1);
+      expect(loadSession()).toBeNull();
+    });
   });
 });
