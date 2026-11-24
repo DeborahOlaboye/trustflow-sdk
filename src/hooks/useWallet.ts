@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { WalletConnection, WalletType } from '../wallet/types';
 import { isWalletRejection } from '../wallet/types';
 import { connectWallet, disconnectWallet } from '../wallet/connect';
@@ -11,6 +11,9 @@ import { clearAllSessions } from '../auth/session';
  * Overlapping `connect()` calls are latest-call-wins: a call that has been
  * superseded never updates `wallet`, `loading`, `error`, or `isRejected`, though
  * its own promise still resolves or rejects with its original result.
+ *
+ * A call that settles after the component has unmounted resolves or rejects as
+ * usual but leaves state alone, so no update reaches an unmounted component (#782).
  */
 export function useWallet() {
   const [wallet, setWallet] = useState<WalletConnection | null>(null);
@@ -19,6 +22,16 @@ export function useWallet() {
   const [isRejected, setIsRejected] = useState(false);
   const lastTypeRef = useRef<WalletType>('freighter');
   const callIdRef = useRef(0);
+  // Starts `true` so a connect started from a child's effect (which runs before
+  // this hook's effect) is not treated as unmounted.
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const reset = useCallback(() => {
     setError(null);
@@ -27,19 +40,21 @@ export function useWallet() {
 
   const connect = useCallback(async (type: WalletType = 'freighter') => {
     const callId = ++callIdRef.current;
+    // Only the newest call, while still mounted, may touch state once it settles.
+    const isCurrent = () => mountedRef.current && callId === callIdRef.current;
     lastTypeRef.current = type;
     setLoading(true);
     setError(null);
     setIsRejected(false);
     try {
       const w = await connectWallet(type);
-      if (callId === callIdRef.current) {
+      if (isCurrent()) {
         setWallet(w);
         setIsRejected(false);
       }
       return w;
     } catch (e: unknown) {
-      if (callId === callIdRef.current) {
+      if (isCurrent()) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
         if (isWalletRejection(e)) {
@@ -48,7 +63,7 @@ export function useWallet() {
       }
       throw e;
     } finally {
-      if (callId === callIdRef.current) {
+      if (isCurrent()) {
         setLoading(false);
       }
     }
@@ -67,9 +82,11 @@ export function useWallet() {
       // outlive the connection they belonged to (#347), so a later
       // reconnect has to re-sign the challenge instead of reusing them.
       clearAllSessions();
-      setWallet(null);
-      setError(null);
-      setIsRejected(false);
+      if (mountedRef.current) {
+        setWallet(null);
+        setError(null);
+        setIsRejected(false);
+      }
     }
   }, []);
 
